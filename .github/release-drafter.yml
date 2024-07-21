@@ -1,0 +1,10 @@
+template: |
+  ### Summary
+  
+  - insert summary here
+  
+  ### Contributions
+  
+  $CHANGES
+
+  [Full Changelog](https://github.com/zhen-rong-yu/demo_action_flutter/blob/master/CHANGELOG.md)
