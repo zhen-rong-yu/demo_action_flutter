@@ -68,6 +68,12 @@ jobs:
           cp $base_path/app-armeabi-v7a-release.apk dist/apks/$apk_name-armeabi-v7a.apk
           cp $base_path/app-x86_64-release.apk dist/apks/$apk_name-x86_64.apk
 
+      - name: Upload Apk
+        uses: actions/download-artifact@v4
+        with:
+          name: apks
+          path: dist/apks/*
+
   release:
     needs:
       - build
@@ -76,6 +82,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download Apk
+        uses: actions/download-artifact@v4
+        with:
+          name: apks
+          path: dist/apks
 
       - name: Draft release
         uses: softprops/action-gh-release@v2
