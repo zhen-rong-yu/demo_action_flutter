@@ -5,7 +5,6 @@ on:
 
 env:
   FLUTTER_VERSION: "3.22.2"
-  APK_BUILD_DIR: "/tmp/build"
 
 jobs:
   build:
@@ -30,19 +29,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Copy files to env.APK_BUILD_DIR
-        run: |
-          mkdir -p $APK_BUILD_DIR
-          cp -r . $APK_BUILD_DIR
-
       - name: Decode key.properties file
-        working-directory: ${{ env.APK_BUILD_DIR }}
         env:
           ENCODED_STRING: ${{ secrets.ANDROID_KEY_PROPERTIES }}
         run: echo $ENCODED_STRING | base64 -di > android/key.properties
 
       - name: Decode android-keystore.jks file
-        working-directory: ${{ env.APK_BUILD_DIR }}
         env:
           ENCODED_STRING: ${{ secrets.ANDROID_KEY_STORE }}
         run: mkdir secrets && echo $ENCODED_STRING | base64 -di > android/android-keystore.jks
@@ -59,18 +51,22 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
 
       - name: Dependencies
-        working-directory: ${{ env.APK_BUILD_DIR }}
         run: flutter pub get
 
       - name: Build APK
-        working-directory: ${{ env.APK_BUILD_DIR }}
-        run: flutter build apk
+        run: flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64,android-x64
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-result
-          path: ${{ env.APK_BUILD_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+      - name: Move and Rename Apk
+        env:
+          APK_NAME: "Rpass-v${{ needs.build.outputs.version }}"
+        run: |
+          base_path=build/app/outputs/flutter-apk/
+          apk_name=v${{ env:APK_NAME }}
+          mkdir dist/apks -p
+          rm -rf dist/apks/*
+          cp $base_path/app-arm64-v8a-release.apk dist/apks/$apk_name-arm64-v8a.apk
+          cp $base_path/app-armeabi-v7a-release.apk dist/apks/$apk_name-armeabi-v7a.apk
+          cp $base_path/app-x86_64-release.apk dist/apks/$apk_name-x86_64.apk
 
   release:
     needs:
@@ -82,30 +78,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Draft release
-        id: draft_release
-        uses: release-drafter/release-drafter@v6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
-          tag: v${{ needs.build.outputs.version }}
-          name: v${{ needs.build.outputs.version }}
+          files: dist/apks/*.apk
+          draft: true
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          tag_name: v${{ needs.build.outputs.version }}
 
-      # APK
-      - name: Download apk file
-        uses: actions/download-artifact@v4
-        with:
-          name: apk-result
-          path: apk-result
 
-      - name: Copy apk file to root
-        run: cp apk-result/*.apk result.apk
 
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.draft_release.outputs.upload_url }}
-          asset_path: result.apk
-          asset_name: Flutter-Demo-${{ needs.build.outputs.version }}.apk
-          asset_content_type: application/vnd.android.package-archive
