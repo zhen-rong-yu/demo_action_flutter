@@ -1,0 +1,111 @@
+name: Release Draft
+
+on:
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: "3.22.2"
+  APK_BUILD_DIR: "/tmp/build"
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version from pubspec.yaml
+        id: get_version
+        run: |
+          VERSION=$(sed -n 's/^version: \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/p' pubspec.yaml)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+  build_apk:
+    needs: build
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Copy files to env.APK_BUILD_DIR
+        run: |
+          mkdir -p $APK_BUILD_DIR
+          cp -r . $APK_BUILD_DIR
+
+      - name: Decode key.properties file
+        working-directory: ${{ env.APK_BUILD_DIR }}
+        env:
+          ENCODED_STRING: ${{ secrets.ANDROID_KEY_PROPERTIES }}
+        run: echo $ENCODED_STRING | base64 -di > android/key.properties
+
+      - name: Decode android-keystore.jks file
+        working-directory: ${{ env.APK_BUILD_DIR }}
+        env:
+          ENCODED_STRING: ${{ secrets.ANDROID_KEY_STORE }}
+        run: mkdir secrets && echo $ENCODED_STRING | base64 -di > android/android-keystore.jks
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Dependencies
+        working-directory: ${{ env.APK_BUILD_DIR }}
+        run: flutter pub get
+
+      - name: Build APK
+        working-directory: ${{ env.APK_BUILD_DIR }}
+        run: flutter build apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-result
+          path: ${{ env.APK_BUILD_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+
+  release:
+    needs:
+      - build
+      - build_apk
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Draft release
+        id: draft_release
+        uses: release-drafter/release-drafter@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag: v${{ needs.build.outputs.version }}
+          name: v${{ needs.build.outputs.version }}
+
+      # APK
+      - name: Download apk file
+        uses: actions/download-artifact@v4
+        with:
+          name: apk-result
+          path: apk-result
+
+      - name: Copy apk file to root
+        run: cp apk-result/*.apk result.apk
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.draft_release.outputs.upload_url }}
+          asset_path: result.apk
+          asset_name: Flutter-Demo-${{ needs.build.outputs.version }}.apk
+          asset_content_type: application/vnd.android.package-archive
