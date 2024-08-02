@@ -166,3 +166,4 @@ jobs:
                   "$BODY"
                   $PRERELEASE
                   $TARGET_COMMITISH
+                  $UPLOAD_DIR
