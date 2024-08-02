@@ -11,7 +11,7 @@ jobs:
         runs-on: ubuntu-20.04
         outputs:
             version: ${{ steps.get_version.outputs.version }}
-            notes: ${{ steps.get_notes.outputs.notes }}
+            # notes: ${{ steps.get_notes.outputs.notes }}
 
         steps:
             - uses: actions/checkout@v4
@@ -22,11 +22,11 @@ jobs:
                   VERSION=$(sed -n 's/^version: \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/p' pubspec.yaml)
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-            - name: Get latest notes from GHANGELOG.md
-              id: get_notes
-              run: |
-                  NOTES=$(awk '/^## /{if(p)exit; p=1; next}p' CHANGELOG.md)
-                  echo "notes=$NOTES" >> $GITHUB_OUTPUT
+            # - name: Get latest notes from GHANGELOG.md
+            #   id: get_notes
+            #   run: |
+            #       NOTES=$(awk '/^## /{if(p)exit; p=1; next}p' CHANGELOG.md)
+            #       echo "notes=$NOTES" >> $GITHUB_OUTPUT
 
     build_apk:
         needs: build
@@ -90,6 +90,12 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
+            - name: Get latest Notes
+              uses: yashanand1910/standard-release-notes@v1.4.0
+              id: get_release_notes
+              with:
+                  version: ${{ needs.build.outputs.version }}
+
             - name: Download Apk
               uses: actions/download-artifact@v4
               with:
@@ -103,7 +109,7 @@ jobs:
                   draft: true
                   generate_release_notes: true
                   fail_on_unmatched_files: true
-                  body: ${{ needs.build.outputs.notes }}
+                  body: ${{ steps.get_release_notes.outputs.release_notes }}
                   token: ${{ secrets.GITHUB_TOKEN }}
                   tag_name: v${{ needs.build.outputs.version }}
 
@@ -116,6 +122,12 @@ jobs:
 
         steps:
             - uses: actions/checkout@v4
+
+            - name: Get latest Notes
+              uses: yashanand1910/standard-release-notes@v1.5.0
+              id: get_release_notes
+              with:
+                  version: ${{ needs.build.outputs.version }}
 
             - name: Install Python
               uses: actions/setup-python@v5
@@ -139,7 +151,7 @@ jobs:
                   REPO: test
                   TAG_NAME: v${{ needs.build.outputs.version }}
                   NAME: ${{ needs.build.outputs.version }}
-                  BODY: ${{ needs.build.outputs.notes }}
+                  BODY: ${{ steps.get_release_notes.outputs.release_notes }}
                   PRERELEASE: 0
                   TARGET_COMMITISH: master
 
