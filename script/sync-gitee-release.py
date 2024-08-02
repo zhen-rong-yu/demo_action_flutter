@@ -109,7 +109,7 @@ def uploadAttachFile(
         data={
             "access_token": access_token,
         },
-        files={"file": (file_name, open(file_path, "r"))},
+        files={"file": (file_name, open(file_path, "rb"))},
     )
     data = res.json()
     return {"id": data["id"], "data": data}
