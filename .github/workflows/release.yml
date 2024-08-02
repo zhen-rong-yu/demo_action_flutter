@@ -154,6 +154,7 @@ jobs:
                   BODY: ${{ steps.get_release_notes.outputs.release_notes }}
                   PRERELEASE: 0
                   TARGET_COMMITISH: master
+                  UPLOAD_DIR: ./dist/apks
 
               run: >
                   python ./script/sync-gitee-release.py
