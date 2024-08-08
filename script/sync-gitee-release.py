@@ -104,7 +104,6 @@ def uploadAttachFile(
     file_name: str,
     file_path: str,
 ):
-    print(file_name, file_path)
     res = requests.post(
         f"{API_URL}/repos/{owner}/{repo}/releases/{release_id}/attach_files",
         data={

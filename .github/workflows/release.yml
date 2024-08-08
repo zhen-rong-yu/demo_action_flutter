@@ -1,35 +1,16 @@
-name: Release Draft
+name: Release
 
 on:
     workflow_dispatch:
+    push:
+        tags:
+            - v**
 
 env:
     FLUTTER_VERSION: "3.22.2"
 
 jobs:
-    build:
-        runs-on: ubuntu-20.04
-        outputs:
-            version: ${{ steps.get_version.outputs.version }}
-            # notes: ${{ steps.get_notes.outputs.notes }}
-
-        steps:
-            - uses: actions/checkout@v4
-
-            - name: Get version from pubspec.yaml
-              id: get_version
-              run: |
-                  VERSION=$(sed -n 's/^version: \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/p' pubspec.yaml)
-                  echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-            # - name: Get latest notes from GHANGELOG.md
-            #   id: get_notes
-            #   run: |
-            #       NOTES=$(awk '/^## /{if(p)exit; p=1; next}p' CHANGELOG.md)
-            #       echo "notes=$NOTES" >> $GITHUB_OUTPUT
-
     build_apk:
-        needs: build
         runs-on: ubuntu-22.04
 
         steps:
@@ -65,7 +46,7 @@ jobs:
 
             - name: Move and Rename Apk
               env:
-                  APK_NAME: "Rpass-${{ needs.build.outputs.version }}"
+                  APK_NAME: "Rpass-${{ github.ref }}"
               run: |
                   base_path=build/app/outputs/flutter-apk/
                   apk_name=${{ env.APK_NAME }}
@@ -83,7 +64,6 @@ jobs:
 
     release:
         needs:
-            - build
             - build_apk
         runs-on: ubuntu-20.04
 
@@ -94,7 +74,7 @@ jobs:
               uses: yashanand1910/standard-release-notes@v1.4.0
               id: get_release_notes
               with:
-                  version: ${{ needs.build.outputs.version }}
+                  version: ${{ github.ref }}
 
             - name: Download Apk
               uses: actions/download-artifact@v4
@@ -106,16 +86,15 @@ jobs:
               uses: softprops/action-gh-release@v2
               with:
                   files: dist/apks/*
-                  draft: true
+                  draft: false
                   generate_release_notes: true
                   fail_on_unmatched_files: true
                   body: ${{ steps.get_release_notes.outputs.release_notes }}
                   token: ${{ secrets.GITHUB_TOKEN }}
-                  tag_name: v${{ needs.build.outputs.version }}
+                  tag_name: ${{ github.ref }}
 
     sync_gitee:
         needs:
-            - build
             - build_apk
             - release
         runs-on: ubuntu-20.04
@@ -127,7 +106,7 @@ jobs:
               uses: yashanand1910/standard-release-notes@v1.5.0
               id: get_release_notes
               with:
-                  version: ${{ needs.build.outputs.version }}
+                  version: ${{ github.ref }}
 
             - name: Install Python
               uses: actions/setup-python@v5
@@ -149,8 +128,8 @@ jobs:
                   ACCESS_TOKEN: ${{ secrets.GITEE_ACCESS_TOKEN }}
                   OWNER: do_yzr
                   REPO: test
-                  TAG_NAME: v${{ needs.build.outputs.version }}
-                  NAME: ${{ needs.build.outputs.version }}
+                  TAG_NAME: ${{ github.ref }}
+                  NAME: ${{ github.ref }}
                   BODY: ${{ steps.get_release_notes.outputs.release_notes }}
                   PRERELEASE: 0
                   TARGET_COMMITISH: master
